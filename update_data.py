@@ -11,6 +11,23 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Cloudflare bypass imports
+try:
+    import cloudscraper
+    CLOUDSCRAPER_AVAILABLE = True
+except ImportError:
+    CLOUDSCRAPER_AVAILABLE = False
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -41,32 +58,149 @@ def setup_directories():
     for directory in [TEMP_DIR, SQL_OUTPUT_DIR, LOG_DIR]:
         os.makedirs(directory, exist_ok=True)
 
+def get_page_with_cloudscraper(url):
+    """Attempt to get page using cloudscraper to bypass Cloudflare."""
+    if not CLOUDSCRAPER_AVAILABLE:
+        return None
+    
+    try:
+        logger.info("Attempting to bypass Cloudflare using cloudscraper...")
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+        
+        response = scraper.get(url, timeout=30)
+        response.raise_for_status()
+        logger.info("Successfully bypassed Cloudflare with cloudscraper")
+        return response, scraper
+        
+    except Exception as e:
+        logger.warning(f"Cloudscraper failed: {e}")
+        return None
+
+def get_page_with_selenium(url):
+    """Attempt to get page using selenium as fallback."""
+    if not SELENIUM_AVAILABLE:
+        return None
+    
+    try:
+        logger.info("Attempting to bypass Cloudflare using Selenium...")
+        
+        # Set up Chrome options
+        chrome_options = Options()
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        
+        # Try headless first, fallback to headed if needed
+        chrome_options.add_argument('--headless')
+        
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
+        driver.get(url)
+        
+        # Wait for page to load and Cloudflare to complete
+        wait = WebDriverWait(driver, 30)
+        
+        # Wait for either the page content or a sign that Cloudflare is processing
+        try:
+            # Wait for content to appear (look for download links)
+            wait.until(
+                lambda driver: len(driver.find_elements(By.TAG_NAME, "a")) > 10 or
+                              "gzip" in driver.page_source.lower()
+            )
+        except:
+            # If that fails, just wait a bit for Cloudflare
+            time.sleep(10)
+        
+        page_source = driver.page_source
+        cookies = driver.get_cookies()
+        
+        driver.quit()
+        
+        logger.info("Successfully bypassed Cloudflare with Selenium")
+        return page_source, cookies
+        
+    except Exception as e:
+        logger.warning(f"Selenium failed: {e}")
+        try:
+            driver.quit()
+        except:
+            pass
+        return None
+
 def download_and_extract_files():
     """Download required .gz files and extract them."""
-    # Create session with enhanced headers to avoid blocking
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0',
-        'DNT': '1',
-    })
+    session = None
+    page_content = None
+    cookies = None
     
-    # Add some randomization to avoid pattern detection
-    time.sleep(random.uniform(1, 3))
-    
+    # Try different methods to bypass Cloudflare
     logger.info("Fetching download page...")
-    response = session.get(BASE_URL, timeout=30)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Method 1: Try cloudscraper first
+    result = get_page_with_cloudscraper(BASE_URL)
+    if result:
+        response, session = result
+        page_content = response.text
+        logger.info("Using cloudscraper session for downloads")
+    
+    # Method 2: Try selenium if cloudscraper failed
+    if not page_content:
+        result = get_page_with_selenium(BASE_URL)
+        if result:
+            page_content, cookies = result
+            logger.info("Using selenium-obtained page content")
+            # Create a regular session with selenium cookies
+            session = requests.Session()
+            if cookies:
+                for cookie in cookies:
+                    session.cookies.set(cookie['name'], cookie['value'], domain=cookie.get('domain', ''))
+            
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Referer': BASE_URL,
+            })
+    
+    # Method 3: Fallback to regular requests (will likely fail with 403)
+    if not page_content:
+        logger.warning("All bypass methods failed, trying regular requests...")
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+        })
+        
+        try:
+            response = session.get(BASE_URL, timeout=30)
+            response.raise_for_status()
+            page_content = response.text
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                logger.error("Blocked by Cloudflare (403 Forbidden)")
+                logger.error("Please install required dependencies: pip install cloudscraper selenium")
+                logger.error("For selenium, you also need ChromeDriver installed")
+            raise
+    
+    if not page_content:
+        raise Exception("Failed to obtain page content with all methods")
+    
+    soup = BeautifulSoup(page_content, 'html.parser')
     
     downloaded_files = []
     found_files = {}
@@ -79,7 +213,7 @@ def download_and_extract_files():
             filename_text = filename_span.text.strip()
             # Check if this is one of our required files
             gz_filename = f"{filename_text}.gz"
-            if gz_filename in REQUIRED_FILES:
+            if gz_filename in REQUIRED_FILES and gz_filename not in found_files:
                 # Look for the gzip download link in the same div
                 gzip_links = div.find_all('a', string='gzip')
                 if gzip_links:
@@ -95,9 +229,25 @@ def download_and_extract_files():
         for link in all_links:
             href = link.get('href', '')
             for required_file in REQUIRED_FILES:
-                if required_file in href and 'cdn.rebrickable.com' in href:
+                if required_file in href and 'cdn.rebrickable.com' in href and required_file not in found_files:
                     found_files[required_file] = href
                     logger.info(f"Found {required_file} via fallback at URL: {href}")
+    
+    # Last resort: try to construct CDN URLs directly (they often follow a pattern)
+    if not found_files:
+        logger.warning("All parsing methods failed, trying direct CDN URL construction...")
+        base_cdn_url = "https://cdn.rebrickable.com/media/downloads/"
+        current_timestamp = time.time()
+        
+        for required_file in REQUIRED_FILES:
+            if required_file not in found_files:
+                # Try common timestamp patterns
+                for timestamp_offset in [0, -3600, -7200, -86400]:  # current, 1h ago, 2h ago, 1d ago
+                    test_timestamp = current_timestamp + timestamp_offset
+                    test_url = f"{base_cdn_url}{required_file}?{test_timestamp}"
+                    found_files[required_file] = test_url
+                    logger.info(f"Constructed potential URL for {required_file}: {test_url}")
+                    break  # Only try one timestamp per file
     
     logger.info(f"Found {len(found_files)} required files: {list(found_files.keys())}")
     
@@ -105,7 +255,7 @@ def download_and_extract_files():
         logger.error("No required files found on the download page!")
         # Debug: Save the page content for inspection
         with open('temp/debug_page.html', 'w', encoding='utf-8') as f:
-            f.write(response.text)
+            f.write(page_content)
         logger.info("Saved page content to temp/debug_page.html for inspection")
         
         # Log some debug info about what we found
@@ -402,10 +552,10 @@ def main():
         logger.info("Cleaning up temporary files...")
         cleanup()
         
-        logger.info("✅ Data update completed successfully!")
+        logger.info("Data update completed successfully!")
         
     except Exception as e:
-        logger.error(f"❌ Error in main process: {str(e)}")
+        logger.error(f"Error in main process: {str(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise

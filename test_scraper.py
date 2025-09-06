@@ -21,13 +21,13 @@ logging.basicConfig(
 def test_scraper():
     """Test the scraper functionality."""
     try:
-        print("🔧 Setting up directories...")
+        print("Setting up directories...")
         setup_directories()
         
-        print("🌐 Testing web scraper...")
+        print("Testing web scraper...")
         downloaded_files = download_and_extract_files()
         
-        print(f"✅ Successfully downloaded {len(downloaded_files)} files:")
+        print(f"Successfully downloaded {len(downloaded_files)} files:")
         for file in downloaded_files:
             print(f"  - {file}")
         
@@ -40,14 +40,14 @@ def test_scraper():
                 size = os.path.getsize(csv_path)
                 csv_files.append(f"{csv_file} ({size:,} bytes)")
         
-        print(f"\n📄 CSV files created:")
+        print(f"\nCSV files created:")
         for csv_file in csv_files:
             print(f"  - {csv_file}")
         
         return len(downloaded_files) > 0
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"Test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -55,8 +55,8 @@ def test_scraper():
 if __name__ == "__main__":
     success = test_scraper()
     if success:
-        print("\n🎉 Scraper test PASSED!")
+        print("\nScraper test PASSED!")
         sys.exit(0)
     else:
-        print("\n💥 Scraper test FAILED!")
+        print("\nScraper test FAILED!")
         sys.exit(1)

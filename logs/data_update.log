@@ -1,0 +1,36 @@
+2025-09-06 13:39:33,106 - INFO - Fetching download page...
+2025-09-06 13:43:54,225 - INFO - Fetching download page...
+2025-09-06 13:43:54,225 - INFO - Attempting to bypass Cloudflare using cloudscraper...
+2025-09-06 13:43:55,123 - INFO - Using cloudscraper session for downloads
+2025-09-06 13:43:55,166 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,169 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,171 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,172 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,172 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,172 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,173 - INFO - Found sets.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/sets.csv.gz?1757142724.57519
+2025-09-06 13:43:55,173 - INFO - Found minifigs.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/minifigs.csv.gz?1757142725.031202
+2025-09-06 13:43:55,173 - INFO - Found inventories.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventories.csv.gz?1757142723.903172
+2025-09-06 13:43:55,173 - INFO - Found inventory_sets.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventory_sets.csv.gz?1757142753.7919693
+2025-09-06 13:43:55,173 - INFO - Found inventory_minifigs.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventory_minifigs.csv.gz?1757142754.3839853
+2025-09-06 13:43:55,177 - INFO - Found 6 required files: ['themes.csv.gz', 'sets.csv.gz', 'minifigs.csv.gz', 'inventories.csv.gz', 'inventory_sets.csv.gz', 'inventory_minifigs.csv.gz']
+2025-09-06 13:43:55,177 - INFO - Processing themes.csv.gz from URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:43:55,177 - INFO - Downloading themes.csv.gz to temp\themes.csv.gz
+2025-09-06 13:47:32,721 - INFO - Fetching download page...
+2025-09-06 13:47:32,721 - INFO - Attempting to bypass Cloudflare using cloudscraper...
+2025-09-06 13:47:33,749 - INFO - Successfully bypassed Cloudflare with cloudscraper
+2025-09-06 13:47:33,750 - INFO - Using cloudscraper session for downloads
+2025-09-06 13:47:33,798 - INFO - Found themes.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:47:33,799 - INFO - Found sets.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/sets.csv.gz?1757142724.57519
+2025-09-06 13:47:33,799 - INFO - Found minifigs.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/minifigs.csv.gz?1757142725.031202
+2025-09-06 13:47:33,799 - INFO - Found inventories.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventories.csv.gz?1757142723.903172
+2025-09-06 13:47:33,799 - INFO - Found inventory_sets.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventory_sets.csv.gz?1757142753.7919693
+2025-09-06 13:47:33,799 - INFO - Found inventory_minifigs.csv.gz at URL: https://cdn.rebrickable.com/media/downloads/inventory_minifigs.csv.gz?1757142754.3839853
+2025-09-06 13:47:33,803 - INFO - Found 6 required files: ['themes.csv.gz', 'sets.csv.gz', 'minifigs.csv.gz', 'inventories.csv.gz', 'inventory_sets.csv.gz', 'inventory_minifigs.csv.gz']
+2025-09-06 13:47:33,804 - INFO - Processing themes.csv.gz from URL: https://cdn.rebrickable.com/media/downloads/themes.csv.gz?1757142720.0630696
+2025-09-06 13:47:33,804 - INFO - Downloading themes.csv.gz to temp\themes.csv.gz
+2025-09-06 13:47:37,814 - INFO - Download attempt 1/3 for themes.csv.gz
+2025-09-06 13:47:38,338 - INFO - Successfully downloaded themes.csv.gz (4379 bytes)
+2025-09-06 13:47:38,352 - INFO - Successfully extracted themes.csv.gz to temp\themes.csv (10028 bytes)
+2025-09-06 13:47:38,354 - INFO - Processing sets.csv.gz from URL: https://cdn.rebrickable.com/media/downloads/sets.csv.gz?1757142724.57519
+2025-09-06 13:47:38,354 - INFO - Downloading sets.csv.gz to temp\sets.csv.gz
