@@ -1,13 +1,6 @@
-version: "3.8"
-
 services:
-  maintenance:
+  app:
     build: .
-    container_name: data-maintenance
-    volumes:
-      - ./temp:/app/temp
-      - ./sql_output:/app/sql_output
-      - ./logs:/app/logs
     environment:
       - SQL_DB_HOST=${SQL_DB_HOST}
       - SQL_DB_USER=${SQL_DB_USER}

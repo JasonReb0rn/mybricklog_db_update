@@ -9,7 +9,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy scripts
 COPY . .
 
-# Make the update script executable
-RUN chmod +x update_data.py
+# Create directories
+RUN mkdir -p temp sql_output logs
 
-CMD ["python3", "update_data.py"]
+# Make scripts executable
+RUN chmod +x update_data.py start.sh
+
+# Use shell script as entrypoint for better Coolify compatibility
+ENTRYPOINT ["./start.sh"]

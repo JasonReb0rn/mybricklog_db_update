@@ -225,6 +225,9 @@ def cleanup():
 
 def main():
     try:
+        logger.info("Starting LEGO data update process...")
+        
+        # Load environment variables
         load_dotenv('.env')
         
         db_host = os.getenv('SQL_DB_HOST')
@@ -232,17 +235,33 @@ def main():
         db_pass = os.getenv('SQL_DB_PASS')
         db_name = os.getenv('SQL_DB_NAME')
         
+        logger.info(f"Database connection: {db_user}@{db_host}/{db_name}")
+        
+        if not all([db_host, db_user, db_pass, db_name]):
+            raise ValueError("Missing required environment variables. Please check SQL_DB_HOST, SQL_DB_USER, SQL_DB_PASS, SQL_DB_NAME")
+        
+        logger.info("Setting up directories...")
         setup_directories()
+        
+        logger.info("Downloading and extracting files from Rebrickable...")
         download_and_extract_files()
+        
+        logger.info("Generating SQL insert statements...")
         os.system('python3 generate_sql_insert.py')
+        
+        logger.info("Executing SQL files and updating database...")
         cursor, conn = execute_sql_files(db_host, db_user, db_pass, db_name)
         conn.close()
+        
+        logger.info("Cleaning up temporary files...")
         cleanup()
         
-        logger.info("Data update completed successfully")
+        logger.info("✅ Data update completed successfully!")
         
     except Exception as e:
-        logger.error(f"Error in main process: {str(e)}")
+        logger.error(f"❌ Error in main process: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise
 
 if __name__ == "__main__":
