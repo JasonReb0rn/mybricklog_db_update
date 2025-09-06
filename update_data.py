@@ -59,6 +59,17 @@ def download_and_extract_files():
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     
+    downloaded_files = []
+    found_links = []
+    
+    # Debug: Log all links found
+    for link in soup.find_all('a'):
+        link_text = link.text.strip()
+        if link_text.endswith('.csv.gz'):
+            found_links.append(link_text)
+    
+    logger.info(f"Found CSV links on page: {found_links}")
+    
     for link in soup.find_all('a'):
         filename = link.text.strip()
         if filename in REQUIRED_FILES:
@@ -66,8 +77,10 @@ def download_and_extract_files():
             if not file_url.startswith('http'):
                 file_url = f"https://rebrickable.com{file_url}"
             
+            logger.info(f"Processing {filename} from URL: {file_url}")
+            
             gz_path = os.path.join(TEMP_DIR, filename)
-            logger.info(f"Downloading {filename}")
+            logger.info(f"Downloading {filename} to {gz_path}")
             
             # Add delay between downloads to avoid rate limiting
             time.sleep(random.uniform(2, 5))
@@ -76,6 +89,10 @@ def download_and_extract_files():
                 response = session.get(file_url, timeout=60)
                 response.raise_for_status()
                 
+                if len(response.content) == 0:
+                    logger.error(f"Downloaded file {filename} is empty!")
+                    continue
+                
                 with open(gz_path, 'wb') as f:
                     f.write(response.content)
                 
@@ -83,16 +100,35 @@ def download_and_extract_files():
                 
                 # Extract the gzip file
                 csv_path = os.path.join(TEMP_DIR, filename[:-3])
-                with gzip.open(gz_path, 'rb') as f_in:
-                    with open(csv_path, 'wb') as f_out:
-                        shutil.copyfileobj(f_in, f_out)
+                try:
+                    with gzip.open(gz_path, 'rb') as f_in:
+                        with open(csv_path, 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                    
+                    # Verify the CSV file was created and has content
+                    if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
+                        logger.info(f"Successfully extracted {filename} to {csv_path} ({os.path.getsize(csv_path)} bytes)")
+                        downloaded_files.append(filename)
+                    else:
+                        logger.error(f"Extracted CSV file {csv_path} is empty or doesn't exist!")
+                        continue
+                        
+                except gzip.BadGzipFile:
+                    logger.error(f"File {filename} is not a valid gzip file!")
+                    continue
                 
                 os.remove(gz_path)
-                logger.info(f"Extracted and cleaned up {filename}")
                 
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to download {filename}: {e}")
                 continue
+    
+    logger.info(f"Successfully downloaded and extracted {len(downloaded_files)} files: {downloaded_files}")
+    
+    if len(downloaded_files) == 0:
+        raise Exception("No files were successfully downloaded! Check the Rebrickable website structure or blocking issues.")
+    
+    return downloaded_files
 
 def execute_sql_files(host, user, password, database, port='3306'):
     """Execute all generated SQL files against the database."""
@@ -246,10 +282,25 @@ def main():
         setup_directories()
         
         logger.info("Downloading and extracting files from Rebrickable...")
-        download_and_extract_files()
+        downloaded_files = download_and_extract_files()
         
         logger.info("Generating SQL insert statements...")
-        os.system('python3 generate_sql_insert.py')
+        result = os.system('python3 generate_sql_insert.py')
+        if result != 0:
+            raise Exception("Failed to generate SQL insert statements")
+        
+        # Verify SQL files were created
+        sql_files_created = []
+        for csv_file, table_name in [('temp/sets.csv', 'sets'), ('temp/inventory_sets.csv', 'inventory_sets'), 
+                                   ('temp/inventory_minifigs.csv', 'inventory_minifigs'), ('temp/minifigs.csv', 'minifigs'),
+                                   ('temp/themes.csv', 'themes'), ('temp/inventories.csv', 'inventories')]:
+            sql_file = f"sql_output/{table_name}_inserts.sql"
+            if os.path.exists(sql_file) and os.path.getsize(sql_file) > 0:
+                sql_files_created.append(sql_file)
+        
+        logger.info(f"Created SQL files: {sql_files_created}")
+        if len(sql_files_created) == 0:
+            raise Exception("No SQL files were generated! Check CSV file processing.")
         
         logger.info("Executing SQL files and updating database...")
         cursor, conn = execute_sql_files(db_host, db_user, db_pass, db_name, db_port)
