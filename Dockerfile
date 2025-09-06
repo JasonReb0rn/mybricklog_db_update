@@ -13,7 +13,7 @@ COPY . .
 RUN mkdir -p temp sql_output logs
 
 # Make scripts executable
-RUN chmod +x update_data.py start.sh
+RUN chmod +x update_data.py
 
-# Use shell script as entrypoint for better Coolify compatibility
-ENTRYPOINT ["./start.sh"]
+# Direct Python execution - simplest approach
+CMD python3 update_data.py

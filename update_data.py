@@ -94,14 +94,15 @@ def download_and_extract_files():
                 logger.error(f"Failed to download {filename}: {e}")
                 continue
 
-def execute_sql_files(host, user, password, database):
+def execute_sql_files(host, user, password, database, port='3306'):
     """Execute all generated SQL files against the database."""
     try:
         conn = mysql.connector.connect(
             host=host, 
             user=user, 
             password=password, 
-            database=database
+            database=database,
+            port=int(port)
         )
         cursor = conn.cursor()
         
@@ -234,8 +235,9 @@ def main():
         db_user = os.getenv('SQL_DB_USER')
         db_pass = os.getenv('SQL_DB_PASS')
         db_name = os.getenv('SQL_DB_NAME')
+        db_port = os.getenv('SQL_DB_PORT', '3306')  # Default to 3306 if not specified
         
-        logger.info(f"Database connection: {db_user}@{db_host}/{db_name}")
+        logger.info(f"Database connection: {db_user}@{db_host}:{db_port}/{db_name}")
         
         if not all([db_host, db_user, db_pass, db_name]):
             raise ValueError("Missing required environment variables. Please check SQL_DB_HOST, SQL_DB_USER, SQL_DB_PASS, SQL_DB_NAME")
@@ -250,7 +252,7 @@ def main():
         os.system('python3 generate_sql_insert.py')
         
         logger.info("Executing SQL files and updating database...")
-        cursor, conn = execute_sql_files(db_host, db_user, db_pass, db_name)
+        cursor, conn = execute_sql_files(db_host, db_user, db_pass, db_name, db_port)
         conn.close()
         
         logger.info("Cleaning up temporary files...")
