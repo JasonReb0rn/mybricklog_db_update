@@ -15,5 +15,5 @@ RUN mkdir -p temp sql_output logs
 # Make scripts executable
 RUN chmod +x update_data.py
 
-# Direct Python execution - simplest approach
-CMD python3 update_data.py
+# Keep container alive after script execution
+CMD python3 update_data.py && tail -f /dev/null
