@@ -43,16 +43,25 @@ def setup_directories():
 
 def download_and_extract_files():
     """Download required .gz files and extract them."""
-    # Create session with headers to avoid blocking
+    # Create session with enhanced headers to avoid blocking
     session = requests.Session()
     session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+        'DNT': '1',
     })
+    
+    # Add some randomization to avoid pattern detection
+    time.sleep(random.uniform(1, 3))
     
     logger.info("Fetching download page...")
     response = session.get(BASE_URL, timeout=30)
@@ -60,68 +69,152 @@ def download_and_extract_files():
     soup = BeautifulSoup(response.text, 'html.parser')
     
     downloaded_files = []
-    found_links = []
+    found_files = {}
     
-    # Debug: Log all links found
-    for link in soup.find_all('a'):
-        link_text = link.text.strip()
-        if link_text.endswith('.csv.gz'):
-            found_links.append(link_text)
+    # Parse the HTML structure: look for divs containing filename spans and gzip links
+    for div in soup.find_all('div'):
+        # Look for spans with filenames
+        filename_span = div.find('span', class_='mr-10')
+        if filename_span:
+            filename_text = filename_span.text.strip()
+            # Check if this is one of our required files
+            gz_filename = f"{filename_text}.gz"
+            if gz_filename in REQUIRED_FILES:
+                # Look for the gzip download link in the same div
+                gzip_links = div.find_all('a', string='gzip')
+                if gzip_links:
+                    download_url = gzip_links[0].get('href')
+                    if download_url:
+                        found_files[gz_filename] = download_url
+                        logger.info(f"Found {gz_filename} at URL: {download_url}")
     
-    logger.info(f"Found CSV links on page: {found_links}")
+    # Fallback method: look for any links containing our required filenames
+    if not found_files:
+        logger.warning("Primary parsing method failed, trying fallback method...")
+        all_links = soup.find_all('a', href=True)
+        for link in all_links:
+            href = link.get('href', '')
+            for required_file in REQUIRED_FILES:
+                if required_file in href and 'cdn.rebrickable.com' in href:
+                    found_files[required_file] = href
+                    logger.info(f"Found {required_file} via fallback at URL: {href}")
     
-    for link in soup.find_all('a'):
-        filename = link.text.strip()
-        if filename in REQUIRED_FILES:
-            file_url = link.get('href')
-            if not file_url.startswith('http'):
-                file_url = f"https://rebrickable.com{file_url}"
-            
-            logger.info(f"Processing {filename} from URL: {file_url}")
-            
-            gz_path = os.path.join(TEMP_DIR, filename)
-            logger.info(f"Downloading {filename} to {gz_path}")
-            
-            # Add delay between downloads to avoid rate limiting
-            time.sleep(random.uniform(2, 5))
-            
+    logger.info(f"Found {len(found_files)} required files: {list(found_files.keys())}")
+    
+    if not found_files:
+        logger.error("No required files found on the download page!")
+        # Debug: Save the page content for inspection
+        with open('temp/debug_page.html', 'w', encoding='utf-8') as f:
+            f.write(response.text)
+        logger.info("Saved page content to temp/debug_page.html for inspection")
+        
+        # Log some debug info about what we found
+        all_spans = soup.find_all('span')
+        logger.debug(f"Found {len(all_spans)} span elements")
+        mr10_spans = soup.find_all('span', class_='mr-10')
+        logger.debug(f"Found {len(mr10_spans)} spans with class 'mr-10'")
+        if mr10_spans:
+            logger.debug(f"Sample mr-10 span texts: {[s.text.strip() for s in mr10_spans[:5]]}")
+        
+        all_gzip_links = soup.find_all('a', string='gzip')
+        logger.debug(f"Found {len(all_gzip_links)} 'gzip' links")
+        if all_gzip_links:
+            logger.debug(f"Sample gzip URLs: {[a.get('href') for a in all_gzip_links[:3]]}")
+        
+        raise Exception("No files were found! Check the Rebrickable website structure or blocking issues.")
+    
+    # Download each found file
+    for gz_filename, file_url in found_files.items():
+        logger.info(f"Processing {gz_filename} from URL: {file_url}")
+        
+        gz_path = os.path.join(TEMP_DIR, gz_filename)
+        logger.info(f"Downloading {gz_filename} to {gz_path}")
+        
+        # Add delay between downloads to avoid rate limiting
+        time.sleep(random.uniform(3, 7))
+        
+        # Retry mechanism for downloads
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                response = session.get(file_url, timeout=60)
+                # Update headers for file download
+                download_headers = session.headers.copy()
+                download_headers.update({
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'cross-site',
+                    'Referer': BASE_URL,
+                })
+                
+                logger.info(f"Download attempt {attempt + 1}/{max_retries} for {gz_filename}")
+                response = session.get(file_url, headers=download_headers, timeout=120)
                 response.raise_for_status()
-                
-                if len(response.content) == 0:
-                    logger.error(f"Downloaded file {filename} is empty!")
-                    continue
-                
-                with open(gz_path, 'wb') as f:
-                    f.write(response.content)
-                
-                logger.info(f"Successfully downloaded {filename} ({len(response.content)} bytes)")
-                
-                # Extract the gzip file
-                csv_path = os.path.join(TEMP_DIR, filename[:-3])
-                try:
-                    with gzip.open(gz_path, 'rb') as f_in:
-                        with open(csv_path, 'wb') as f_out:
-                            shutil.copyfileobj(f_in, f_out)
-                    
-                    # Verify the CSV file was created and has content
-                    if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
-                        logger.info(f"Successfully extracted {filename} to {csv_path} ({os.path.getsize(csv_path)} bytes)")
-                        downloaded_files.append(filename)
-                    else:
-                        logger.error(f"Extracted CSV file {csv_path} is empty or doesn't exist!")
-                        continue
-                        
-                except gzip.BadGzipFile:
-                    logger.error(f"File {filename} is not a valid gzip file!")
-                    continue
-                
-                os.remove(gz_path)
+                break  # Success, exit retry loop
                 
             except requests.exceptions.RequestException as e:
-                logger.error(f"Failed to download {filename}: {e}")
+                logger.warning(f"Download attempt {attempt + 1} failed for {gz_filename}: {e}")
+                if attempt == max_retries - 1:  # Last attempt
+                    logger.error(f"Failed to download {gz_filename} after {max_retries} attempts")
+                    continue  # Skip to next file
+                else:
+                    # Wait before retry with exponential backoff
+                    wait_time = (2 ** attempt) + random.uniform(1, 3)
+                    logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                    time.sleep(wait_time)
+                    continue
+        else:
+            # If we get here, all retries failed
+            continue
+        
+        # Process the downloaded file
+        if len(response.content) == 0:
+            logger.error(f"Downloaded file {gz_filename} is empty!")
+            continue
+        
+        # Check if we got blocked (common blocking responses)
+        content_type = response.headers.get('content-type', '').lower()
+        if 'text/html' in content_type and len(response.content) < 10000:
+            logger.error(f"Possibly blocked for {gz_filename} - got HTML response instead of file")
+            logger.debug(f"Response content: {response.text[:500]}")
+            continue
+        
+        try:
+            with open(gz_path, 'wb') as f:
+                f.write(response.content)
+            
+            logger.info(f"Successfully downloaded {gz_filename} ({len(response.content)} bytes)")
+            
+            # Extract the gzip file
+            csv_filename = gz_filename[:-3]  # Remove .gz extension
+            csv_path = os.path.join(TEMP_DIR, csv_filename)
+            
+            with gzip.open(gz_path, 'rb') as f_in:
+                with open(csv_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            
+            # Verify the CSV file was created and has content
+            if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
+                logger.info(f"Successfully extracted {gz_filename} to {csv_path} ({os.path.getsize(csv_path)} bytes)")
+                downloaded_files.append(gz_filename)
+                # Clean up the gz file after successful extraction
+                os.remove(gz_path)
+            else:
+                logger.error(f"Extracted CSV file {csv_path} is empty or doesn't exist!")
                 continue
+                
+        except gzip.BadGzipFile:
+            logger.error(f"File {gz_filename} is not a valid gzip file!")
+            # Save first 100 bytes for debugging
+            try:
+                with open(gz_path, 'rb') as f:
+                    first_bytes = f.read(100)
+                logger.debug(f"First 100 bytes: {first_bytes}")
+            except:
+                pass
+            continue
+        except Exception as e:
+            logger.error(f"Unexpected error processing {gz_filename}: {e}")
+            continue
     
     logger.info(f"Successfully downloaded and extracted {len(downloaded_files)} files: {downloaded_files}")
     
